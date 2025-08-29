@@ -1,0 +1,333 @@
+import { useSignal } from "@preact/signals-react";
+import { useSignals } from "@preact/signals-react/runtime";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Skeleton, Image, Card } from "@heroui/react";
+
+import { mantraInitValues, MantraType } from "./common/types";
+import {
+  editModeUpdate,
+  mantraEntityIsLoading,
+  SelectedMantra,
+  mantraIsEditMode,
+} from "./common/service";
+
+import { ArticleLayout } from "@/layouts/article-layout";
+import TypeButton from "@/types/type.button";
+import { ContentLayout } from "@/layouts/content-layout";
+import { ScreenAccess, ThemeMode } from "@/utils/services/app.event";
+
+export default function MantraView() {
+  useSignals();
+  const { t } = useTranslation();
+  const mantra = useSignal<MantraType>({ ...mantraInitValues });
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoName, setVideoName] = useState<string | null>(null);
+  const [imageName, setImageName] = useState<string | null>(null);
+  const [imageUrlExtra, setImageUrlExtra] = useState<string | null>(null);
+  const [imageNameExtra, setImageNameExtra] = useState<string | null>(null);
+
+  useEffect(() => {
+    setImageUrl(SelectedMantra.value?.thumbnail?.url || null);
+    setImageName(SelectedMantra.value?.thumbnail?.filename || null);
+    setVideoUrl(SelectedMantra.value?.video?.url || null);
+    setVideoName(SelectedMantra.value?.video?.filename || null);
+    setImageUrlExtra(SelectedMantra.value?.imageURL?.url || null);
+    setImageNameExtra(SelectedMantra.value?.imageURL?.filename || null);
+  }, [SelectedMantra.value]);
+
+  const editActionProps = useMemo(
+    () => ({
+      label: t("edit"),
+      name: "Pencil" as const,
+      onPress: () => {
+        mantraIsEditMode.value = true;
+      },
+    }),
+    [t],
+  );
+
+  const cancelProps = useMemo(
+    () => ({
+      action: "secondary" as const,
+      label: t("cancel"),
+      name: "CircleX" as const,
+      onPress: () => editModeUpdate(undefined),
+    }),
+    [t],
+  );
+
+  return (
+    <section className="w-full">
+      <ArticleLayout>
+        <div className="flex flex-row justify-between gap-4 items-center">
+          <h3 className="text-lg font-semibold">{t("Mantra View")}</h3>
+          <div className="flex flex-row gap-4">
+            <TypeButton {...cancelProps} />
+            {ScreenAccess.value.update && <TypeButton {...editActionProps} />}
+          </div>
+        </div>
+      </ArticleLayout>
+      <ContentLayout>
+        <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto">
+          <div className="flex flex-col gap-4">
+            <Card className="p-4 rounded-lg">
+              <Skeleton
+                className="rounded-lg"
+                isLoaded={!mantraEntityIsLoading.value}
+              >
+                <p className="text-sm py-2">
+                  <span className="font-extrabold">{t("active")} : </span>
+                  <span className="font-light">
+                    {(SelectedMantra.value?.active ??
+                    mantra.value.active ??
+                    true)
+                      ? t("Active")
+                      : t("Inactive")}
+                  </span>
+                </p>
+              </Skeleton>
+              <Skeleton
+                className="rounded-lg"
+                isLoaded={!mantraEntityIsLoading.value}
+              >
+                <p className="text-sm py-2">
+                  <span className="font-extrabold">{t("Repeat")} : </span>
+                  <span className="font-light">
+                    {SelectedMantra.value?.repeat ?? mantra.value.repeat ?? 1}
+                  </span>
+                </p>
+              </Skeleton>
+              <Skeleton
+                className="rounded-lg"
+                isLoaded={!mantraEntityIsLoading.value}
+              >
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("name")} : </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold py-10">
+                    {t("english")} :{" "}
+                  </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.name["en-US"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("telugu")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.name["te-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("hindi")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.name["hi-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("kannada")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.name["kn-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("tamil")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.name["ta-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("Malayalam")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.name["ml-IN"]}
+                  </span>
+                </p>
+              </Skeleton>
+            </Card>
+            <Skeleton
+              className="rounded-lg"
+              isLoaded={!mantraEntityIsLoading.value}
+            >
+              <Card className="p-4 rounded-lg">
+                <p className="text-sm">
+                  <span className="font-extrabold">
+                    {t("shortDescription")} :{" "}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold py-10">
+                    {t("english")} :{" "}
+                  </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.shortSummary["en-US"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("telugu")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.shortSummary["te-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("hindi")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.shortSummary["hi-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("kannada")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.shortSummary["kn-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("tamil")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.shortSummary["ta-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("Malayalam")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.shortSummary["ml-IN"]}
+                  </span>
+                </p>
+              </Card>
+            </Skeleton>
+            <Skeleton
+              className="rounded-lg"
+              isLoaded={!mantraEntityIsLoading.value}
+            >
+              <Card className="p-4 rounded-lg">
+                <p className="text-sm font-medium">
+                  <span className="font-extrabold">{t("description")} : </span>
+
+                  {/* <span className="text-wrap font-light">
+                    {SelectedMantra.value?.summary?.["en-US"] ||
+                      mantra.value.summary?.["en-US"]}
+                  </span> */}
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold py-10">
+                    {t("english")} :{" "}
+                  </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.summary["en-US"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("telugu")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.summary["te-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("hindi")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.summary["hi-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("kannada")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.summary["kn-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("tamil")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.summary["ta-IN"]}
+                  </span>
+                </p>
+                <p className="text-sm  py-2">
+                  <span className="font-extrabold">{t("Malayalam")} : </span>
+                  <span className="text-wrap font-light">
+                    {SelectedMantra.value?.summary["ml-IN"]}
+                  </span>
+                </p>
+              </Card>
+            </Skeleton>
+            <Skeleton
+              className="rounded-lg"
+              isLoaded={!mantraEntityIsLoading.value}
+            >
+              <h5 className="text-md font-medium text-gray-700 mb-2">
+                {ThemeMode.value === "dark" ? (
+                  <>
+                    {imageUrl && (
+                      <div className="text-white"> {t("Attachment")} </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {imageUrl && (
+                      <div className="text-black"> {t("Attachment")} </div>
+                    )}
+                  </>
+                )}
+              </h5>
+              <Card className="p-4 rounded-lg">
+                <div className="w-full flex justify-between">
+                  <div className="w-[50%]">
+                    {imageUrl && (
+                      <>
+                        <p className="text-sm font-medium">
+                          {t("thumbnailImage")}:
+                        </p>
+                        <Image
+                          alt="Thumbnail Preview"
+                          className="object-cover mx-auto mt-2"
+                          height={160}
+                          src={imageUrl}
+                        />
+                        <p className="text-sm mt-1">{imageName}</p>
+                      </>
+                    )}
+                    {imageUrlExtra && (
+                      <>
+                        <p className="text-sm font-medium">
+                          {t("extraImage")}:
+                        </p>
+                        <Image
+                          alt="Extra Image Preview"
+                          className="object-cover mx-auto mt-2"
+                          height={160}
+                          src={imageUrlExtra}
+                        />
+                        <p className="text-sm mt-1">{imageNameExtra}</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="w-[50%]">
+                    {videoUrl && (
+                      <>
+                        <p className="text-sm font-medium">
+                          {t("Video Preview")}:
+                        </p>
+                        <video controls className="w-full max-w-[88%] mt-2">
+                          <source src={videoUrl} type="video/mp4" />
+                          <track
+                            default
+                            kind="captions"
+                            label="English captions"
+                            src="/path-to-captions.vtt"
+                            srcLang="en"
+                          />
+                          Your browser does not support the video tag.
+                        </video>
+                        <p className="text-sm mt-1">{videoName}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </Skeleton>
+          </div>
+        </div>
+      </ContentLayout>
+    </section>
+  );
+}
