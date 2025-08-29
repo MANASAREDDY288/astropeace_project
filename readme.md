@@ -1,226 +1,139 @@
-# zwitch
+# quick-lru [![Build Status](https://travis-ci.org/sindresorhus/quick-lru.svg?branch=master)](https://travis-ci.org/sindresorhus/quick-lru) [![Coverage Status](https://coveralls.io/repos/github/sindresorhus/quick-lru/badge.svg?branch=master)](https://coveralls.io/github/sindresorhus/quick-lru?branch=master)
 
-[![Build][build-badge]][build]
-[![Coverage][coverage-badge]][coverage]
-[![Downloads][downloads-badge]][downloads]
-[![Size][size-badge]][size]
+> Simple [“Least Recently Used” (LRU) cache](https://en.m.wikipedia.org/wiki/Cache_replacement_policies#Least_Recently_Used_.28LRU.29)
 
-Handle values based on a field.
+Useful when you need to cache something and limit memory usage.
 
-## Contents
-
-*   [What is this?](#what-is-this)
-*   [When should I use this?](#when-should-i-use-this)
-*   [Install](#install)
-*   [Use](#use)
-*   [API](#api)
-    *   [`zwitch(key[, options])`](#zwitchkey-options)
-    *   [`one(value[, rest…])`](#onevalue-rest)
-    *   [`function handler(value[, rest…])`](#function-handlervalue-rest)
-*   [Types](#types)
-*   [Compatibility](#compatibility)
-*   [Related](#related)
-*   [Contribute](#contribute)
-*   [Security](#security)
-*   [License](#license)
-
-## What is this?
-
-This is a tiny package that lets you `switch` between some field on objects.
-
-## When should I use this?
-
-This package is very useful when mapping one AST to another.
-It’s a lot like a `switch` statement on one field, but it’s extensible.
+Inspired by the [`hashlru` algorithm](https://github.com/dominictarr/hashlru#algorithm), but instead uses [`Map`](https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Map) to support keys of any type, not just strings, and values can be `undefined`.
 
 ## Install
 
-This package is [ESM only][esm].
-In Node.js (version 14.14+, 16.0+), install with [npm][]:
-
-```sh
-npm install zwitch
+```
+$ npm install quick-lru
 ```
 
-In Deno with [`esm.sh`][esmsh]:
+## Usage
 
 ```js
-import {zwitch} from 'https://esm.sh/zwitch@2'
-```
+const QuickLRU = require('quick-lru');
 
-In browsers with [`esm.sh`][esmsh]:
+const lru = new QuickLRU({maxSize: 1000});
 
-```html
-<script type="module">
-  import {zwitch} from 'https://esm.sh/zwitch@2?bundle'
-</script>
-```
+lru.set('🦄', '🌈');
 
-## Use
+lru.has('🦄');
+//=> true
 
-```js
-import {zwitch} from 'zwitch'
-
-const handle = zwitch('type', {invalid, unknown, handlers: {alpha: handleAlpha}})
-
-handle({type: 'alpha'})
-
-function handleAlpha() { /* … */ }
-```
-
-Or, with a `switch` statement:
-
-```js
-const field = 'type'
-
-function handle(value) {
-  let fn = invalid
-
-  if (value && typeof value === 'object' && field in value) {
-    switch (value[field]) {
-      case 'alpha':
-        fn = handleAlpha
-        break
-      default:
-        fn = unknown
-        break
-    }
-  }
-
-  return fn.apply(this, arguments)
-}
-
-handle({type: 'alpha'})
-
-function handleAlpha() { /* … */ }
-function unknown() { /* … */ }
-function invalid() { /* … */ }
+lru.get('🦄');
+//=> '🌈'
 ```
 
 ## API
 
-This package exports the identifier `zwitch`.
-There is no default export.
+### new QuickLRU(options?)
 
-### `zwitch(key[, options])`
+Returns a new instance.
 
-Create a switch, based on a `key` (`string`).
+### options
 
-##### `options`
+Type: `object`
 
-Options can be omitted and added later to `one`.
+#### maxSize
 
-###### `options.handlers`
+*Required*\
+Type: `number`
 
-Handlers to use, stored on `one.handlers` (`Record<string, Function>`,
-optional).
+The maximum number of items before evicting the least recently used items.
 
-###### `options.unknown`
+#### maxAge
 
-Handler to use for unknown values, stored on `one.unknown` (`Function`,
-optional).
+Type: `number`\
+Default: `Infinity`
 
-###### `options.invalid`
+The maximum number of milliseconds an item should remain in cache.
+By default maxAge will be Infinity, which means that items will never expire.
 
-Handler to use for invalid values, stored on `one.invalid` (`Function`,
-optional).
+Lazy expiration happens upon the next `write` or `read` call.
 
-###### Returns
+Individual expiration of an item can be specified by the `set(key, value, options)` method.
 
-See [`one`][one] (`Function`).
+#### onEviction
 
-### `one(value[, rest…])`
+*Optional*\
+Type: `(key, value) => void`
 
-Handle one value.
-Based on the bound `key`, a respective handler will be called.
-If `value` is not an object, or doesn’t have a `key` property, the special
-“invalid” handler will be called.
-If `value` has an unknown `key`, the special “unknown” handler will be called.
+Called right before an item is evicted from the cache.
 
-All arguments, and the context object (`this`), are passed through to the
-[handler][], and it’s result is returned.
+Useful for side effects or for items like object URLs that need explicit cleanup (`revokeObjectURL`).
 
-###### `one.handlers`
+### Instance
 
-Map of [handler][]s (`Record<string, Function>`).
+The instance is [`iterable`](https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Iteration_protocols) so you can use it directly in a [`for…of`](https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Statements/for...of) loop.
 
-###### `one.invalid`
+Both `key` and `value` can be of any type.
 
-Special [`handler`][handler] called if a value doesn’t have a `key` property.
-If not set, `undefined` is returned for invalid values.
+#### .set(key, value, options?)
 
-###### `one.unknown`
+Set an item. Returns the instance.
 
-Special [`handler`][handler] called if a value does not have a matching
-handler.
-If not set, `undefined` is returned for unknown values.
+Individual expiration of an item can be specified with the `maxAge` option. If not specified, the global `maxAge` value will be used in case it is specified on the constructor, otherwise the item will never expire.
 
-### `function handler(value[, rest…])`
+#### .get(key)
 
-Handle one value.
+Get an item.
 
-## Types
+#### .has(key)
 
-This package is fully typed with [TypeScript][].
-It exports the types `Handler`, `UnknownHandler`, `InvalidHandler`, and
-`Options`.
+Check if an item exists.
 
-## Compatibility
+#### .peek(key)
 
-This package is at least compatible with all maintained versions of Node.js.
-As of now, that is Node.js 14.14+ and 16.0+.
-It also works in Deno and modern browsers.
+Get an item without marking it as recently used.
 
-## Related
+#### .delete(key)
 
-*   [`mapz`](https://github.com/wooorm/mapz)
-    — functional map
+Delete an item.
 
-## Contribute
+Returns `true` if the item is removed or `false` if the item doesn't exist.
 
-Yes please!
-See [How to Contribute to Open Source][contribute].
+#### .clear()
 
-## Security
+Delete all items.
 
-This package is safe.
+#### .resize(maxSize)
 
-## License
+Update the `maxSize`, discarding items as necessary. Insertion order is mostly preserved, though this is not a strong guarantee.
 
-[MIT][license] © [Titus Wormer][author]
+Useful for on-the-fly tuning of cache sizes in live systems.
 
-<!-- Definitions -->
+#### .keys()
 
-[build-badge]: https://github.com/wooorm/zwitch/workflows/main/badge.svg
+Iterable for all the keys.
 
-[build]: https://github.com/wooorm/zwitch/actions
+#### .values()
 
-[coverage-badge]: https://img.shields.io/codecov/c/github/wooorm/zwitch.svg
+Iterable for all the values.
 
-[coverage]: https://codecov.io/github/wooorm/zwitch
+#### .entriesAscending()
 
-[downloads-badge]: https://img.shields.io/npm/dm/zwitch.svg
+Iterable for all entries, starting with the oldest (ascending in recency).
 
-[downloads]: https://www.npmjs.com/package/zwitch
+#### .entriesDescending()
 
-[size-badge]: https://img.shields.io/bundlephobia/minzip/zwitch.svg
+Iterable for all entries, starting with the newest (descending in recency).
 
-[size]: https://bundlephobia.com/result?p=zwitch
+#### .size
 
-[npm]: https://docs.npmjs.com/cli/install
+The stored item count.
 
-[esm]: https://gist.github.com/sindresorhus/a39789f98801d908bbc7ff3ecc99d99c
+---
 
-[esmsh]: https://esm.sh
-
-[typescript]: https://www.typescriptlang.org
-
-[contribute]: https://opensource.guide/how-to-contribute/
-
-[license]: license
-
-[author]: https://wooorm.com
-
-[one]: #onevalue-rest
-
-[handler]: #function-handlervalue-rest
+<div align="center">
+	<b>
+		<a href="https://tidelift.com/subscription/pkg/npm-quick-lru?utm_source=npm-quick-lru&utm_medium=referral&utm_campaign=readme">Get professional support for this package with a Tidelift subscription</a>
+	</b>
+	<br>
+	<sub>
+		Tidelift helps make open source sustainable for maintainers while giving companies<br>assurances about security, maintenance, and licensing for their dependencies.
+	</sub>
+</div>

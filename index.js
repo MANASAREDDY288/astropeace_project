@@ -1,118 +1,263 @@
-/**
- * @callback Handler
- *   Handle a value, with a certain ID field set to a certain value.
- *   The ID field is passed to `zwitch`, and it’s value is this function’s
- *   place on the `handlers` record.
- * @param {...any} parameters
- *   Arbitrary parameters passed to the zwitch.
- *   The first will be an object with a certain ID field set to a certain value.
- * @returns {any}
- *   Anything!
- */
+'use strict';
 
-/**
- * @callback UnknownHandler
- *   Handle values that do have a certain ID field, but it’s set to a value
- *   that is not listed in the `handlers` record.
- * @param {unknown} value
- *   An object with a certain ID field set to an unknown value.
- * @param {...any} rest
- *   Arbitrary parameters passed to the zwitch.
- * @returns {any}
- *   Anything!
- */
+class QuickLRU {
+	constructor(options = {}) {
+		if (!(options.maxSize && options.maxSize > 0)) {
+			throw new TypeError('`maxSize` must be a number greater than 0');
+		}
 
-/**
- * @callback InvalidHandler
- *   Handle values that do not have a certain ID field.
- * @param {unknown} value
- *   Any unknown value.
- * @param {...any} rest
- *   Arbitrary parameters passed to the zwitch.
- * @returns {void|null|undefined|never}
- *   This should crash or return nothing.
- */
+		if (typeof options.maxAge === 'number' && options.maxAge === 0) {
+			throw new TypeError('`maxAge` must be a number greater than 0');
+		}
 
-/**
- * @template {InvalidHandler} [Invalid=InvalidHandler]
- * @template {UnknownHandler} [Unknown=UnknownHandler]
- * @template {Record<string, Handler>} [Handlers=Record<string, Handler>]
- * @typedef Options
- *   Configuration (required).
- * @property {Invalid} [invalid]
- *   Handler to use for invalid values.
- * @property {Unknown} [unknown]
- *   Handler to use for unknown values.
- * @property {Handlers} [handlers]
- *   Handlers to use.
- */
+		this.maxSize = options.maxSize;
+		this.maxAge = options.maxAge || Infinity;
+		this.onEviction = options.onEviction;
+		this.cache = new Map();
+		this.oldCache = new Map();
+		this._size = 0;
+	}
 
-const own = {}.hasOwnProperty
+	_emitEvictions(cache) {
+		if (typeof this.onEviction !== 'function') {
+			return;
+		}
 
-/**
- * Handle values based on a field.
- *
- * @template {InvalidHandler} [Invalid=InvalidHandler]
- * @template {UnknownHandler} [Unknown=UnknownHandler]
- * @template {Record<string, Handler>} [Handlers=Record<string, Handler>]
- * @param {string} key
- *   Field to switch on.
- * @param {Options<Invalid, Unknown, Handlers>} [options]
- *   Configuration (required).
- * @returns {{unknown: Unknown, invalid: Invalid, handlers: Handlers, (...parameters: Parameters<Handlers[keyof Handlers]>): ReturnType<Handlers[keyof Handlers]>, (...parameters: Parameters<Unknown>): ReturnType<Unknown>}}
- */
-export function zwitch(key, options) {
-  const settings = options || {}
+		for (const [key, item] of cache) {
+			this.onEviction(key, item.value);
+		}
+	}
 
-  /**
-   * Handle one value.
-   *
-   * Based on the bound `key`, a respective handler will be called.
-   * If `value` is not an object, or doesn’t have a `key` property, the special
-   * “invalid” handler will be called.
-   * If `value` has an unknown `key`, the special “unknown” handler will be
-   * called.
-   *
-   * All arguments, and the context object, are passed through to the handler,
-   * and it’s result is returned.
-   *
-   * @this {unknown}
-   *   Any context object.
-   * @param {unknown} [value]
-   *   Any value.
-   * @param {...unknown} parameters
-   *   Arbitrary parameters passed to the zwitch.
-   * @property {Handler} invalid
-   *   Handle for values that do not have a certain ID field.
-   * @property {Handler} unknown
-   *   Handle values that do have a certain ID field, but it’s set to a value
-   *   that is not listed in the `handlers` record.
-   * @property {Handlers} handlers
-   *   Record of handlers.
-   * @returns {unknown}
-   *   Anything.
-   */
-  function one(value, ...parameters) {
-    /** @type {Handler|undefined} */
-    let fn = one.invalid
-    const handlers = one.handlers
+	_deleteIfExpired(key, item) {
+		if (typeof item.expiry === 'number' && item.expiry <= Date.now()) {
+			if (typeof this.onEviction === 'function') {
+				this.onEviction(key, item.value);
+			}
 
-    if (value && own.call(value, key)) {
-      // @ts-expect-error Indexable.
-      const id = String(value[key])
-      // @ts-expect-error Indexable.
-      fn = own.call(handlers, id) ? handlers[id] : one.unknown
-    }
+			return this.delete(key);
+		}
 
-    if (fn) {
-      return fn.call(this, value, ...parameters)
-    }
-  }
+		return false;
+	}
 
-  one.handlers = settings.handlers || {}
-  one.invalid = settings.invalid
-  one.unknown = settings.unknown
+	_getOrDeleteIfExpired(key, item) {
+		const deleted = this._deleteIfExpired(key, item);
+		if (deleted === false) {
+			return item.value;
+		}
+	}
 
-  // @ts-expect-error: matches!
-  return one
+	_getItemValue(key, item) {
+		return item.expiry ? this._getOrDeleteIfExpired(key, item) : item.value;
+	}
+
+	_peek(key, cache) {
+		const item = cache.get(key);
+
+		return this._getItemValue(key, item);
+	}
+
+	_set(key, value) {
+		this.cache.set(key, value);
+		this._size++;
+
+		if (this._size >= this.maxSize) {
+			this._size = 0;
+			this._emitEvictions(this.oldCache);
+			this.oldCache = this.cache;
+			this.cache = new Map();
+		}
+	}
+
+	_moveToRecent(key, item) {
+		this.oldCache.delete(key);
+		this._set(key, item);
+	}
+
+	* _entriesAscending() {
+		for (const item of this.oldCache) {
+			const [key, value] = item;
+			if (!this.cache.has(key)) {
+				const deleted = this._deleteIfExpired(key, value);
+				if (deleted === false) {
+					yield item;
+				}
+			}
+		}
+
+		for (const item of this.cache) {
+			const [key, value] = item;
+			const deleted = this._deleteIfExpired(key, value);
+			if (deleted === false) {
+				yield item;
+			}
+		}
+	}
+
+	get(key) {
+		if (this.cache.has(key)) {
+			const item = this.cache.get(key);
+
+			return this._getItemValue(key, item);
+		}
+
+		if (this.oldCache.has(key)) {
+			const item = this.oldCache.get(key);
+			if (this._deleteIfExpired(key, item) === false) {
+				this._moveToRecent(key, item);
+				return item.value;
+			}
+		}
+	}
+
+	set(key, value, {maxAge = this.maxAge === Infinity ? undefined : Date.now() + this.maxAge} = {}) {
+		if (this.cache.has(key)) {
+			this.cache.set(key, {
+				value,
+				maxAge
+			});
+		} else {
+			this._set(key, {value, expiry: maxAge});
+		}
+	}
+
+	has(key) {
+		if (this.cache.has(key)) {
+			return !this._deleteIfExpired(key, this.cache.get(key));
+		}
+
+		if (this.oldCache.has(key)) {
+			return !this._deleteIfExpired(key, this.oldCache.get(key));
+		}
+
+		return false;
+	}
+
+	peek(key) {
+		if (this.cache.has(key)) {
+			return this._peek(key, this.cache);
+		}
+
+		if (this.oldCache.has(key)) {
+			return this._peek(key, this.oldCache);
+		}
+	}
+
+	delete(key) {
+		const deleted = this.cache.delete(key);
+		if (deleted) {
+			this._size--;
+		}
+
+		return this.oldCache.delete(key) || deleted;
+	}
+
+	clear() {
+		this.cache.clear();
+		this.oldCache.clear();
+		this._size = 0;
+	}
+	
+	resize(newSize) {
+		if (!(newSize && newSize > 0)) {
+			throw new TypeError('`maxSize` must be a number greater than 0');
+		}
+
+		const items = [...this._entriesAscending()];
+		const removeCount = items.length - newSize;
+		if (removeCount < 0) {
+			this.cache = new Map(items);
+			this.oldCache = new Map();
+			this._size = items.length;
+		} else {
+			if (removeCount > 0) {
+				this._emitEvictions(items.slice(0, removeCount));
+			}
+
+			this.oldCache = new Map(items.slice(removeCount));
+			this.cache = new Map();
+			this._size = 0;
+		}
+
+		this.maxSize = newSize;
+	}
+
+	* keys() {
+		for (const [key] of this) {
+			yield key;
+		}
+	}
+
+	* values() {
+		for (const [, value] of this) {
+			yield value;
+		}
+	}
+
+	* [Symbol.iterator]() {
+		for (const item of this.cache) {
+			const [key, value] = item;
+			const deleted = this._deleteIfExpired(key, value);
+			if (deleted === false) {
+				yield [key, value.value];
+			}
+		}
+
+		for (const item of this.oldCache) {
+			const [key, value] = item;
+			if (!this.cache.has(key)) {
+				const deleted = this._deleteIfExpired(key, value);
+				if (deleted === false) {
+					yield [key, value.value];
+				}
+			}
+		}
+	}
+
+	* entriesDescending() {
+		let items = [...this.cache];
+		for (let i = items.length - 1; i >= 0; --i) {
+			const item = items[i];
+			const [key, value] = item;
+			const deleted = this._deleteIfExpired(key, value);
+			if (deleted === false) {
+				yield [key, value.value];
+			}
+		}
+
+		items = [...this.oldCache];
+		for (let i = items.length - 1; i >= 0; --i) {
+			const item = items[i];
+			const [key, value] = item;
+			if (!this.cache.has(key)) {
+				const deleted = this._deleteIfExpired(key, value);
+				if (deleted === false) {
+					yield [key, value.value];
+				}
+			}
+		}
+	}
+
+	* entriesAscending() {
+		for (const [key, value] of this._entriesAscending()) {
+			yield [key, value.value];
+		}
+	}
+
+	get size() {
+		if (!this._size) {
+			return this.oldCache.size;
+		}
+
+		let oldCacheSize = 0;
+		for (const key of this.oldCache.keys()) {
+			if (!this.cache.has(key)) {
+				oldCacheSize++;
+			}
+		}
+
+		return Math.min(this._size + oldCacheSize, this.maxSize);
+	}
 }
+
+module.exports = QuickLRU;

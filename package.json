@@ -1,72 +1,31 @@
 {
-  "name": "zwitch",
-  "version": "2.0.4",
-  "description": "Handle values based on a property",
+  "name": "@babel/helper-string-parser",
+  "version": "7.27.1",
+  "description": "A utility package to parse strings",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babel/babel.git",
+    "directory": "packages/babel-helper-string-parser"
+  },
+  "homepage": "https://babel.dev/docs/en/next/babel-helper-string-parser",
   "license": "MIT",
-  "keywords": [
-    "handle",
-    "switch",
-    "property"
-  ],
-  "repository": "wooorm/zwitch",
-  "bugs": "https://github.com/wooorm/zwitch/issues",
-  "funding": {
-    "type": "github",
-    "url": "https://github.com/sponsors/wooorm"
+  "publishConfig": {
+    "access": "public"
   },
-  "author": "Titus Wormer <tituswormer@gmail.com> (https://wooorm.com)",
-  "contributors": [
-    "Titus Wormer <tituswormer@gmail.com> (https://wooorm.com)"
-  ],
-  "sideEffects": false,
-  "type": "module",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "files": [
-    "index.d.ts",
-    "index.js"
-  ],
+  "main": "./lib/index.js",
   "devDependencies": {
-    "@types/node": "^18.0.0",
-    "c8": "^7.0.0",
-    "prettier": "^2.0.0",
-    "remark-cli": "^11.0.0",
-    "remark-preset-wooorm": "^9.0.0",
-    "tsd": "^0.24.0",
-    "type-coverage": "^2.0.0",
-    "typescript": "^4.0.0",
-    "xo": "^0.52.0"
+    "charcodes": "^0.2.0"
   },
-  "scripts": {
-    "prepack": "npm run build && npm run format",
-    "build": "tsc --build --clean && tsc --build && tsd && type-coverage",
-    "format": "remark . -qfo && prettier . -w --loglevel warn && xo --fix",
-    "test-api": "node --conditions development test.js",
-    "test-coverage": "c8 --check-coverage --100 --reporter lcov npm run test-api",
-    "test": "npm run build && npm run format && npm run test-coverage"
+  "engines": {
+    "node": ">=6.9.0"
   },
-  "prettier": {
-    "tabWidth": 2,
-    "useTabs": false,
-    "singleQuote": true,
-    "bracketSpacing": false,
-    "semi": false,
-    "trailingComma": "none"
+  "author": "The Babel Team (https://babel.dev/team)",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
   },
-  "xo": {
-    "prettier": true
-  },
-  "remarkConfig": {
-    "plugins": [
-      "preset-wooorm"
-    ]
-  },
-  "typeCoverage": {
-    "atLeast": 100,
-    "detail": true,
-    "strict": true,
-    "ignoreFiles": [
-      "index.d.ts"
-    ]
-  }
+  "type": "commonjs"
 }
